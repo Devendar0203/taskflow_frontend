@@ -1,0 +1,159 @@
+# Backend Plan — Add `startTime` & `endTime` to Task
+
+## What needs to change
+
+The frontend now sends `startTime` and `endTime` as `HH:mm` strings in the task creation/update payload.
+The backend needs to accept, validate, store, and return these fields.
+
+---
+
+## 1. Task Entity — `Task.java`
+
+Add two new columns to the existing [Task](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/types/index.ts#28-40) entity:
+
+```java
+// In your @Entity class
+
+@Column(name = "start_time")
+private String startTime;   // stored as "HH:mm"
+
+@Column(name = "end_time")
+private String endTime;     // stored as "HH:mm"
+
+// Add getters + setters (or use Lombok @Data)
+public String getStartTime() { return startTime; }
+public void setStartTime(String startTime) { this.startTime = startTime; }
+
+public String getEndTime() { return endTime; }
+public void setEndTime(String endTime) { this.endTime = endTime; }
+```
+
+> [!IMPORTANT]
+> If you use JPA with `spring.jpa.hibernate.ddl-auto=update`, the columns will be added automatically.
+> If you manage migrations with Flyway/Liquibase, add a migration SQL (see §3).
+
+---
+
+## 2. Task DTO — `TaskDTO.java` (or `TaskRequest.java`)
+
+If you have a DTO (Data Transfer Object) that maps request body → entity, add the fields there too:
+
+```java
+private String startTime;
+private String endTime;
+
+// Getters + setters
+```
+
+If you map directly from the entity (no separate DTO), skip this step.
+
+---
+
+## 3. Database Migration (if using Flyway / Liquibase)
+
+### Flyway — add `V{next}__add_task_timing.sql` in `src/main/resources/db/migration/`:
+
+```sql
+ALTER TABLE task
+  ADD COLUMN start_time VARCHAR(5) NULL,
+  ADD COLUMN end_time   VARCHAR(5) NULL;
+```
+
+### Liquibase — add a changeset to your `changelog.xml` / `changelog.yaml`:
+
+```yaml
+- changeSet:
+    id: add-task-timing
+    author: you
+    changes:
+      - addColumn:
+          tableName: task
+          columns:
+            - column: { name: start_time, type: VARCHAR(5) }
+            - column: { name: end_time,   type: VARCHAR(5) }
+```
+
+---
+
+## 4. Service Layer — `TaskService.java`
+
+In your [createTask](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/services/task.service.ts#5-9) / [updateTask](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/services/task.service.ts#13-17) method, map the new fields from DTO → entity:
+
+```java
+task.setStartTime(dto.getStartTime());
+task.setEndTime(dto.getEndTime());
+```
+
+### Optional validation (recommended)
+
+Add a helper to ensure end time is after start time when both are provided:
+
+```java
+private void validateTiming(String start, String end) {
+    if (start == null || end == null) return;
+    // Parse HH:mm
+    String[] s = start.split(":");
+    String[] e = end.split(":");
+    int startMins = Integer.parseInt(s[0]) * 60 + Integer.parseInt(s[1]);
+    int endMins   = Integer.parseInt(e[0]) * 60 + Integer.parseInt(e[1]);
+    if (endMins <= startMins) {
+        throw new IllegalArgumentException("End time must be after start time");
+    }
+}
+```
+
+Call it in [createTask](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/services/task.service.ts#5-9) and [updateTask](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/services/task.service.ts#13-17):
+
+```java
+validateTiming(dto.getStartTime(), dto.getEndTime());
+```
+
+---
+
+## 5. Controller — `TaskController.java`
+
+No changes needed if you already use `@RequestBody Task task` or `@RequestBody TaskDTO dto` — the new fields will be deserialized automatically by Jackson once they're in the entity/DTO.
+
+If you have `@JsonIgnoreProperties(ignoreUnknown = true)` on the entity, remove `unknownFields` from exclusion or just ensure `startTime` / `endTime` are actual fields.
+
+---
+
+## 6. Response — confirm fields are returned
+
+Make sure the [Task](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/types/index.ts#28-40) entity / response DTO **includes** the new fields in JSON serialization.
+If you use `@JsonIgnoreProperties` or `@JsonProperty` annotations, verify `startTime` and `endTime` are not accidentally excluded.
+
+---
+
+## 7. Quick Checklist
+
+| Step | File | Done? |
+|---|---|---|
+| Add fields to entity | `Task.java` | ☐ |
+| Add fields to DTO | `TaskDTO.java` | ☐ |
+| DB migration (if needed) | `V{N}__add_task_timing.sql` | ☐ |
+| Map fields in service | `TaskService.java` | ☐ |
+| Add validation helper | `TaskService.java` | ☐ |
+| Verify JSON response | Postman / curl test | ☐ |
+
+---
+
+## 8. Quick Test (Postman / curl)
+
+```bash
+POST /api/tasks
+Authorization: Bearer <your-token>
+Content-Type: application/json
+
+{
+  "title": "Design review",
+  "priority": "HIGH",
+  "status": "TODO",
+  "dueDate": "2026-03-22T23:59:59",
+  "startTime": "09:00",
+  "endTime": "10:30",
+  "groupId": 1
+}
+```
+
+**Expected response** should include `startTime: "09:00"` and `endTime: "10:30"` in the returned JSON.

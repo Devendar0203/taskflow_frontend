@@ -1,0 +1,36 @@
+# Goal Description
+
+Implement the missing task progress tracking feature (as part of assigned tasks) and fix the bug in the "Today" page where tasks are improperly filtered due to timezone issues and an incorrect empty state condition.
+
+## User Review Required
+No breaking changes or significant design decisions require review.
+
+## Proposed Changes
+
+### Services and Types
+#### [MODIFY] src/services/task.service.ts
+- Add `updateTaskProgress: async (taskId: number, progress: number, status: TaskStatus, message?: string)` to send a PUT request to `/tasks/{taskId}/progress`.
+
+#### [MODIFY] src/types/index.ts
+- Add `progress?: number` to the [Task](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/types/index.ts#28-40) interface to support frontend tracking.
+
+### UI and Components
+#### [MODIFY] src/pages/Today.tsx
+- **Bug Fix**: Use local timezone parsing for `todayString` to prevent incorrectly flagging tasks as overdue or missing them entirely due to UTC time translation.
+- **Bug Fix**: Update the empty state check to only show the "You're all done for today!" graphic if both `todayTasks` and `overdueTasks` are empty, instead of evaluating the entire unscheduled task list.
+
+#### [NEW] src/components/modals/UpdateProgressModal.tsx
+- Create a new modal component with:
+  - A Slider or InputNumber for progress (0-100%)
+  - A Select dropdown for updating status (`TODO`, `IN_PROGRESS`, `DONE`)
+  - A Input.TextArea for appending daily work updates or logs.
+
+#### [MODIFY] src/pages/MyTasks.tsx
+- Add an "Update" button to each task card that opens the `UpdateProgressModal`.
+- Render a small visual progress indicator (if `progress > 0`) on the task items so users can see their current progress at a glance.
+
+## Verification Plan
+
+### Manual Verification
+1. **Today Page Bug:** Open the application and navigate to the "Today" page. Verify that the date calculation works correctly in the local timezone, and that having tasks for *tomorrow* doesn't break the empty state for *today*.
+2. **Progress Update Feature:** Navigate to "My Tasks". Look for the new "Update" action. Click it, set the progress to 50%, add a log message, and save. Verify the changes are reflected on the frontend and the PUT request completes successfully.

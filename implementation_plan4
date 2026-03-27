@@ -1,0 +1,78 @@
+# Multi-Feature Update Plan
+
+Five features requested, all frontend (no backend code changes possible from frontend — timing fields are
+added to the [Task](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/types/index.ts#28-38) type and sent in the API payload; the Spring Boot backend already accepts extra fields via
+`@JsonIgnoreProperties(ignoreUnknown = false)` or similar, so the fields will be persisted if the backend
+Task entity is extended accordingly).
+
+## Proposed Changes
+
+---
+
+### 1. Types — [src/types/index.ts](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/types/index.ts)
+#### [MODIFY] [index.ts](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/types/index.ts)
+
+Add two timing fields to [Task](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/types/index.ts#28-38):
+```ts
+startTime?: string;  // "HH:mm" e.g. "09:00"
+endTime?:   string;  // "HH:mm" e.g. "10:30"
+```
+
+---
+
+### 2. Completed Page — `src/pages/Completed.tsx`
+#### [NEW] [Completed.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/pages/Completed.tsx)
+
+New page at `/completed` that:
+- Fetches all tasks via `taskService.getMyTasks()`
+- Filters to `status === 'DONE'`
+- Groups them by completion date (using `dueDate`)
+- Shows each task with a strikethrough title, date, priority badge, and an "Undo" checkbox to revert to TODO
+
+---
+
+### 3. AppRoutes — [src/routes/AppRoutes.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/routes/AppRoutes.tsx)
+#### [MODIFY] [AppRoutes.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/routes/AppRoutes.tsx)
+
+Add lazy import for `Completed` and a `/completed` route.
+
+---
+
+### 4. MainLayout sidebar — make Completed clickable
+#### [MODIFY] [MainLayout.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/components/layout/MainLayout.tsx)
+
+The "Completed" sidebar item is missing its [onClick](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/components/layout/MainLayout.tsx#118-119). Add `navigate('/completed')`.
+
+---
+
+### 5. Filters & Labels Calendar — [src/pages/TimeBlockingCalendar.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/pages/TimeBlockingCalendar.tsx)
+#### [MODIFY] [TimeBlockingCalendar.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/pages/TimeBlockingCalendar.tsx)
+
+- **Day selection**: Clickable date pills row at top; clicking highlights that day and scrolls/focuses it
+- **Left time bar**: Hourly labels (08:00 – 20:00) on the left axis
+- **Timed task blocks**: Tasks with `startTime`/`endTime` rendered as positioned blocks on the time grid
+- **Tasks without time**: Shown as chips in an "All day" row above the grid
+
+---
+
+### 6. CreateTaskModal — [src/components/modals/CreateTaskModal.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/components/modals/CreateTaskModal.tsx)
+#### [MODIFY] [CreateTaskModal.tsx](file:///c:/Users/deven/OneDrive/Documents/Desktop/frontend/src/components/modals/CreateTaskModal.tsx)
+
+Add two `TimePicker` fields in a row: **Start Time** and **End Time**.
+Values sent to API as `startTime: "HH:mm"` and `endTime: "HH:mm"`.
+
+---
+
+## Verification Plan
+
+### TypeScript Check
+```powershell
+npx tsc --noEmit
+```
+Expected: no errors.
+
+### Manual Verification
+1. Open `http://localhost:5173/filters-labels` — confirm hourly time bar on left, tasks render as timed blocks at correct positions, date pills at top are clickable and scroll to the selected day column.
+2. Create a new task with Start Time `09:00` and End Time `10:00` — confirm it appears in the 9 AM slot.
+3. Mark any task as DONE, navigate to `/completed` — confirm it appears there with strikethrough.
+4. Click the "Completed" sidebar link — confirm navigation works.
